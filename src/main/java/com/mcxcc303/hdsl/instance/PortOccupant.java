@@ -215,12 +215,16 @@ public final class PortOccupant {
 	 * <p>
 	 * Checks {@code netstat -ano} first. When {@code netstat} omits a listening socket (such as on
 	 * Windows 11 builds where newly created listeners report state 0 in {@code TCP_TABLE_OWNER_PID_ALL}),
-	 * falls back to querying the kernel listener table via {@code iphlpapi.dll} and PowerShell
-	 * {@code Get-NetTCPConnection}.
+	 * queries the kernel listener table via {@code iphlpapi.dll}; when that finds nothing, PowerShell
+	 * {@code Get-NetTCPConnection} is tried as a last resort.
+	 * <p>
+	 * The PowerShell step is best effort: it depends on the state column, which is exactly the data
+	 * that is unreliable on the affected builds, so it can leave the occupant unknown when neither of
+	 * the other two paths can see the listener.
 	 *
 	 * @param port    the port
 	 * @param timeout how long the commands are given
-	 * @return the pid, or empty when no row listens on it
+	 * @return the pid, or empty when no row listens on it or the fallback could not see one
 	 */
 	private static OptionalLong pidOnWindows(int port, Duration timeout) {
 		OptionalLong pid = pidFromNetstat(port, timeout);
