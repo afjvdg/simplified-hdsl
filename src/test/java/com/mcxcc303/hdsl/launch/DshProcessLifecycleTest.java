@@ -350,6 +350,31 @@ class DshProcessLifecycleTest {
 	}
 
 	@Test
+	void reinstallingTheSameListenerAfterTerminalDoesNotNotifyItAgain() throws Exception {
+		requireNode();
+		DshInstance instance = makeInstance();
+		Files.writeString(instance.dshEntryPoint(), "process.exit(1);");
+
+		AtomicInteger terminalDeliveries = new AtomicInteger();
+		Consumer<DshProcess.State> listener = state -> {
+			if (state == DshProcess.State.STOPPED || state == DshProcess.State.FAILED) {
+				terminalDeliveries.incrementAndGet();
+			}
+		};
+
+		DshProcess process = DshProcess.start(instance);
+		await(() -> !process.isRunning(), "process to exit");
+		await(() -> process.state() == DshProcess.State.FAILED, "process state to become FAILED");
+
+		process.setStateListener(listener);
+		process.setStateListener(null);
+		process.setStateListener(listener);
+
+		assertEquals(1, terminalDeliveries.get(),
+		             "a listener that has seen the terminal state is not told again after being reinstalled");
+	}
+
+	@Test
 	void stateListenerRacingWithTerminationNeverFiresTerminalMoreThanOnce() throws Exception {
 		requireNode();
 		for (int i = 0; i < 5; i++) {

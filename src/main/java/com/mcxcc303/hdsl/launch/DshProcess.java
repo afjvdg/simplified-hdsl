@@ -80,7 +80,7 @@ public final class DshProcess {
 	private volatile int exitCode = Integer.MIN_VALUE;
 	private volatile @Nullable Consumer<String> logSink;
 	private volatile @Nullable Consumer<State> stateListener;
-	private boolean terminalNotified;
+	private @Nullable Consumer<State> terminalListener;
 	private volatile boolean stopRequested;
 
 	/**
@@ -271,14 +271,13 @@ public final class DshProcess {
 		State current;
 		boolean notifyImmediate = false;
 		synchronized (stateLock) {
-			if (this.stateListener == listener && (state == State.STOPPED || state == State.FAILED) && terminalNotified) {
+			if (this.stateListener == listener && isTerminal(state) && terminalListener == listener) {
 				return;
 			}
 			this.stateListener = listener;
-			this.terminalNotified = false;
 			current = this.state;
-			if (listener != null && (current == State.STOPPED || current == State.FAILED)) {
-				this.terminalNotified = true;
+			if (listener != null && isTerminal(current) && terminalListener != listener) {
+				this.terminalListener = listener;
 				notifyImmediate = true;
 			}
 		}
@@ -407,9 +406,9 @@ public final class DshProcess {
 				return;
 			}
 			state = next;
-			if (next == State.STOPPED || next == State.FAILED) {
-				if (!terminalNotified && stateListener != null) {
-					terminalNotified = true;
+			if (isTerminal(next)) {
+				if (stateListener != null && terminalListener != stateListener) {
+					terminalListener = stateListener;
 					listener = stateListener;
 				}
 			} else {
@@ -423,6 +422,10 @@ public final class DshProcess {
 				LOG.warning("State listener failed", e);
 			}
 		}
+	}
+
+	private static boolean isTerminal(State state) {
+		return state == State.STOPPED || state == State.FAILED;
 	}
 
 	public Path workingDirectory() {
