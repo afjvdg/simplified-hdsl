@@ -203,6 +203,26 @@ class DshPortsTest {
 	}
 
 	@Test
+	void switchingBackToAutomaticRepairsAnInvalidRememberedPort() throws Exception {
+		DshInstance instance = managedInstance("ports-invalid-auto");
+		try {
+			DshInstanceSettings.setAutoPort(instance, 80);
+
+			DshInstance fixed = DshPorts.withMode(instance, DshPortMode.FIXED);
+			assertNull(DshPorts.validate(fixed.portOrDefault()),
+			           "the fixed port must be valid even when the remembered automatic port is not");
+
+			DshInstance automatic = DshPorts.withMode(fixed, DshPortMode.AUTO);
+			assertNull(DshPorts.validate(automatic.portOrDefault()),
+			           "switching back to automatic must not reuse the privileged remembered port");
+			assertEquals(automatic.portOrDefault(), DshInstanceSettings.autoPort(instance),
+			             "the repaired automatic port is the one written down");
+		} finally {
+			DshInstanceManager.delete(instance.id());
+		}
+	}
+
+	@Test
 	void theSurfacePassesTheResolvedPortThrough() {
 		// Only the browser surface serves HTTP, so only it takes a port.
 		assertEquals(List.of(), DshSurface.ACP.arguments(39000));

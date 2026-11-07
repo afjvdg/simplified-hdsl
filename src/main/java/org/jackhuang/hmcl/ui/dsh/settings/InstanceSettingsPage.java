@@ -61,6 +61,8 @@ public final class InstanceSettingsPage extends ScrollPane {
 	private final JFXTextField portField = new JFXTextField();
 	private final Runnable onChanged;
 	private DshInstance instance;
+	private boolean syncing;
+	private String lastSyncedPort = "";
 
 	/**
 	 * Creates the settings tab.
@@ -437,14 +439,7 @@ public final class InstanceSettingsPage extends ScrollPane {
 			return port;
 		}
 		int auto = DshPorts.autoPort(instance);
-		if (auto >= 1024 && auto <= 65535) {
-			return auto;
-		}
-		try {
-			return DshPorts.reserve(instance.id());
-		} catch (DshException e) {
-			return 3081;
-		}
+		return auto >= 1024 && auto <= 65535 ? auto : 0;
 	}
 
 	private LineTextPane buildPortRow() {
@@ -465,7 +460,7 @@ public final class InstanceSettingsPage extends ScrollPane {
 		FXUtils.setValidateWhileTextChanged(portField, true);
 		portField.setOnAction(event -> applyPort(portField.getText()));
 		portField.focusedProperty().addListener((observable, was, focused) -> {
-			if (!focused) {
+			if (!focused && !syncing && !portField.getText().equals(lastSyncedPort)) {
 				applyPort(portField.getText());
 			}
 		});
@@ -479,7 +474,14 @@ public final class InstanceSettingsPage extends ScrollPane {
 		boolean fixed = instance.hasOwnPortMode() && instance.portMode() == DshPortMode.FIXED;
 		portField.setDisable(!fixed);
 		int port = fixed ? validPortOrDefault() : instance.portOrDefault();
-		portField.setText(port > 0 ? Integer.toString(port) : "");
+		String text = port > 0 ? Integer.toString(port) : "";
+		syncing = true;
+		try {
+			portField.setText(text);
+			lastSyncedPort = text;
+		} finally {
+			syncing = false;
+		}
 		portField.setPromptText(i18n("dsh.instance.port.auto.none"));
 		portRow.setVisible(true);
 		portRow.setManaged(true);
